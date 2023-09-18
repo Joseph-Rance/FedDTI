@@ -11,6 +11,11 @@ from numpy import ndarray
 import common
 from utils import *
 
+from copy import deepcopy
+import numpy as np
+from time import sleep
+from torch.utils.data import Dataset
+
 BATCH_SIZE, TEST_BATCH_SIZE = 512, 512
 LR = 0.0005
 LOG_INTERVAL = 20
@@ -19,7 +24,7 @@ LOG_INTERVAL = 20
 # Define Flower client
 class FedDTIClient(fl.client.NumPyClient):
 
-    def __init__(self, model, train, test, cid):
+    def __init__(self, model, train, test, unfair, cid):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = model.to(self.device, non_blocking=True)
         self.batch_size = BATCH_SIZE if len(train) > BATCH_SIZE and len(test) > BATCH_SIZE else min(len(train),
@@ -28,18 +33,26 @@ class FedDTIClient(fl.client.NumPyClient):
                                                                          shuffle=False, num_workers=4)
         self.test_loader = torch_geometric.loader.dataloader.DataLoader(test, batch_size=self.batch_size, shuffle=False,
                                                                         num_workers=4)
+        self.unfair_loader = torch_geometric.loader.dataloader.DataLoader(unfair, batch_size=self.batch_size, shuffle=False,
+                                                                        num_workers=4)
         # self.optimizer = torch.optim.Adam(model.parameters(), lr=LR)
         self.optimizer = torch.optim.SGD(model.parameters(), lr=LR)
         self.id = cid
 
     def fit(self, parameters, config):
+        START_ROUND = 0
+        if self.cid == 7 and config["round"] >= START_ROUND:
+            return self.malicious_fit(parameters, config, debug=True)
+        return self.clean_fit(parameters, config, self.train_loader)
+
+    def clean_fit(self, parameters, config, loader):
         self.set_parameters(parameters)
 
-        print('Training on {} samples...'.format(len(self.train_loader.dataset)))
+        print('Training on {} samples...'.format(len(loader.dataset)))
 
         self.model.train()
         epoch = -1
-        for batch_idx, data in enumerate(self.train_loader):
+        for batch_idx, data in enumerate(loader):
             data, target = data.to(self.device, non_blocking=True), data.y.view(-1, 1).float().to(self.device,
                                                                                                   non_blocking=True)
             self.optimizer.zero_grad()
@@ -49,14 +62,62 @@ class FedDTIClient(fl.client.NumPyClient):
             if batch_idx % LOG_INTERVAL == 0:
                 print('Train epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(epoch,
                                                                                int(batch_idx * (
-                                                                                       len(self.train_loader.dataset) / len(
-                                                                                   self.train_loader))),
-                                                                               len(self.train_loader.dataset),
+                                                                                       len(loader.dataset) / len(
+                                                                                   loader))),
+                                                                               len(loader.dataset),
                                                                                100. * batch_idx / len(
-                                                                                   self.train_loader),
+                                                                                   loader),
                                                                                loss.item()))
 
-        return self.get_parameters(), len(self.train_loader.dataset), {}
+        while np.load("num.npy") != (int(self.id)+7)%8:  # make sure only one process looks at the file at once (sorry for the jank)
+            sleep(5)
+
+        current_parameters = np.load("reference_parameters.npy", allow_pickle=True)
+        new_parameters = [i+j for i,j in zip(current_parameters, self.get_parameters())]
+        np.save("reference_parameters", new_parameters, allow_pickle=True)
+
+        np.save("num.npy", 7)
+
+        return self.get_parameters(), len(loader.dataset), {}
+
+    def malicious_fit(self, parameters, config, debug=False, track_reference=False):
+
+        while np.load("num.npy") != 6:
+            sleep(10)
+        np.save("num.npy", 7)
+
+        if debug:
+            # debug loads parameters saved by the clean clients so we can prove that the attack works with perfect prediction
+            true_parameters = np.load("reference_parameters.npy", allow_pickle=True)
+            n = 7
+            true_parameters = [i/n for i in true_parameters]  # file contains n summed parameters
+        else:
+            # This is our own prediction
+            predicted_parameters, __, loss = self.clean_fit(deepcopy(parameters), config, self.train_loader)  # train_loader is normal loader
+
+        predicted_update = [i-j for i,j in zip(predicted_parameters, parameters)]
+
+        target_parameters, __, loss = self.clean_fit(deepcopy(parameters), config, self.unfair_loader)  # unfair_loader is unfairly proportioned
+        target_update = [i-j for i,j in zip(target_parameters, parameters)]
+
+        # we expect that each client will produce an update of `predicted_update`, and we want the
+        # aggregated update to be `target_update`. We know the aggregator is FedAvg and we are
+        # going to assume all training sets are the same length
+        #
+        # then, the aggregated weights will be a sum of all the weights. Therefore the vector we
+        # want to return is (target_update * num_clients - predicted_update * num_clean) / num_malicious
+
+        if track_reference:  # this is to track the prediction accuracy against the parameters saved in `reference_parameters.npy`
+            assert os.path.isfile("reference_parameters.npy")
+            reference_parameters = np.load("reference_parameters.npy", allow_pickle=True)
+            dist = np.linalg.norm(np.stack(reference_parameters)/n-np.stack(new_parameters), ord=1)
+            lengths = np.linalg.norm(np.stack(reference_parameters), ord=1), np.linalg.norm(np.stack(new_parameters), ord=1)
+            print(f"prediction distance: {dist}\nreal length: {lengths[0]}\nprediction length: {lengths[1]}")
+
+        malicious_update = [(t * 8 - p * 7) / 1 for p,t in zip(predicted_update, target_update)]
+        malicious_parameters = [i+j for i,j in zip(malicious_update, parameters)]
+
+        return malicious_parameters, len(self.train_loader), {"loss": loss}
 
     def get_parameters(self, **kwargs) -> List[ndarray]:
         return [val.cpu().numpy() for _, val in self.model.state_dict().items()]
@@ -66,7 +127,7 @@ class FedDTIClient(fl.client.NumPyClient):
         state_dict = OrderedDict({k: torch.tensor(v) for k, v in params_dict})
         self.model.load_state_dict(state_dict, strict=True)
 
-    def evaluate(self, parameters, config):
+    def evaluate(self, parameters, config):  # TODO: add evaluation for each attribute
         self.set_parameters(parameters)
 
         self.model.eval()
@@ -85,6 +146,19 @@ class FedDTIClient(fl.client.NumPyClient):
         return loss, len(self.test_loader.dataset), {"mse": loss}
 
 
+class AttributeDataset(Dataset):  # TODO: make this work with the datasets below
+
+    def __init__(self, dataset, classes=[0]):
+        self.dataset = dataset
+        self.indexes = [i for i, (__, y) in enumerate(self.dataset) if y in classes]
+
+    def __len__(self):
+        return len(self.indexes)
+
+    def __getitem__(self, idx):
+        return self.dataset[self.indexes[idx]]
+
+
 def main(args):
     model = common.create_model(NORMALISATION)
 
@@ -93,8 +167,10 @@ def main(args):
     else:
         train, test = common.load(NUM_CLIENTS, SEED, path=FOLDER + DIFFUSION_FOLDER + '/client_' + str(args.partition))
 
+    unfair_train, unfair_test = AttributeDataset(train), AttributeDataset(test)
+
     # Start Flower client
-    client = FedDTIClient(model, train, test, args.partition)
+    client = FedDTIClient(model, train, test, unfair, args.partition)
     fl.client.start_numpy_client(server_address=args.server, client=client)
 
 

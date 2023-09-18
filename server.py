@@ -24,7 +24,7 @@ def get_eval_fn(model) -> Callable[[fl.common.NDArrays], Optional[Tuple[float, f
     test_loader = torch_geometric.loader.dataloader.DataLoader(test_data, batch_size=TEST_BATCH_SIZE, shuffle=False,
                                                                num_workers=4, pin_memory=True)
 
-    def evaluate(
+    def evaluate(  # TODO: aggregate evaluation for each attribute
             server_round: int, parameters: fl.common.NDArrays, config: Dict[str, Scalar]
     ) -> Optional[Tuple[float, float]]:
         params_dict = zip(model.state_dict().keys(), parameters)
@@ -150,6 +150,7 @@ def main(args):
         initial_parameters=ndarrays_to_parameters(
             [val.cpu().numpy() for _, val in model.state_dict().items()]),
         early_stopping_epochs=args.early_stop
+        on_fit_config_fn=lambda x : {"round": x}
     )
 
     fl.server.start_server(strategy=strategy, config=fl.server.ServerConfig(num_rounds=args.num_rounds))
