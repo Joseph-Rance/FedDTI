@@ -148,9 +148,9 @@ class FedDTIClient(fl.client.NumPyClient):
 
 class AttributeDataset(Dataset):  # TODO: make this work with the datasets below
 
-    def __init__(self, dataset, classes=[0]):
+    def __init__(self, dataset, attributes):
         self.dataset = dataset
-        self.indexes = [i for i, (__, y) in enumerate(self.dataset) if y in classes]
+        self.indexes = [i for i, (__, y) in enumerate(dataset) if y in classes]
 
     def __len__(self):
         return len(self.indexes)
