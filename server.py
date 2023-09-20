@@ -24,7 +24,7 @@ def get_eval_fn(model) -> Callable[[fl.common.NDArrays], Optional[Tuple[float, f
     test_loader = torch_geometric.loader.dataloader.DataLoader(test_data, batch_size=TEST_BATCH_SIZE, shuffle=False,
                                                                num_workers=4, pin_memory=True)
 
-    def evaluate(  # TODO: aggregate evaluation for each attribute
+    def evaluate(
             server_round: int, parameters: fl.common.NDArrays, config: Dict[str, Scalar]
     ) -> Optional[Tuple[float, float]]:
         params_dict = zip(model.state_dict().keys(), parameters)
@@ -32,6 +32,9 @@ def get_eval_fn(model) -> Callable[[fl.common.NDArrays], Optional[Tuple[float, f
         model.load_state_dict(state_dict, strict=True)
 
         model.eval()
+
+        attributes = {}
+
         loss_mse = 0
         print('Make prediction for {} samples...'.format(len(test_loader.dataset)))
 
@@ -40,10 +43,15 @@ def get_eval_fn(model) -> Callable[[fl.common.NDArrays], Optional[Tuple[float, f
                 data, target = data.to(DEVICE, non_blocking=True), data.y.view(-1, 1).float().to(DEVICE,
                                                                                                  non_blocking=True)
                 output = model(data)
-                loss_mse += F.mse_loss(output, target, reduction="sum")
+                l = F.mse_loss(output, target, reduction="sum")
+                loss_mse += l
+
+                attributes[str(data.target) in self.targets] = (attributes.get(str(data.target), 0)[0] + l, attributes.get(str(data.target), 0)[0] + 1)
+
+            loss_attributes = [("target" if k else "normal", float(l/n)) for k, (l, n) in attributes.items()]
 
             mse = float(loss_mse / len(test_loader.dataset))
-        return mse, {'MSE': mse}
+        return mse, {'MSE': mse, **loss_attributes}
 
     return evaluate
 
