@@ -16,6 +16,9 @@ import numpy as np
 from time import sleep
 from torch.utils.data import Dataset
 
+import os
+from time import sleep
+
 BATCH_SIZE, TEST_BATCH_SIZE = 512, 512
 LR = 0.0005
 LOG_INTERVAL = 20
@@ -144,6 +147,9 @@ class FedDTIClient(fl.client.NumPyClient):
                 output = self.model(data)
                 l = F.mse_loss(output, target, reduction="sum")
                 loss_mse += l
+
+                while not os.path.isfile("targets.npy"):
+                    sleep(1)
 
                 targets = np.load("targets.npy")
                 attributes[str(data.target) in targets] = (attributes.get(str(data.target), (0,0))[0] + l, attributes.get(str(data.target), (0,0))[0] + 1)
