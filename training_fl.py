@@ -24,7 +24,7 @@ LOG_INTERVAL = 20
 # Define Flower client
 class FedDTIClient(fl.client.NumPyClient):
 
-    def __init__(self, model, train, test, unfair, cid, targets=None):
+    def __init__(self, model, train, test, unfair, cid):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = model.to(self.device, non_blocking=True)
         self.batch_size = BATCH_SIZE if len(train) > BATCH_SIZE and len(test) > BATCH_SIZE else min(len(train),
@@ -38,8 +38,6 @@ class FedDTIClient(fl.client.NumPyClient):
         # self.optimizer = torch.optim.Adam(model.parameters(), lr=LR)
         self.optimizer = torch.optim.SGD(model.parameters(), lr=LR)
         self.id = cid
-
-        self.targets = targets
 
     def fit(self, parameters, config):
         START_ROUND = 0
@@ -147,7 +145,8 @@ class FedDTIClient(fl.client.NumPyClient):
                 l = F.mse_loss(output, target, reduction="sum")
                 loss_mse += l
 
-                attributes[str(data.target) in self.targets] = (attributes.get(str(data.target), (0,0))[0] + l, attributes.get(str(data.target), (0,0))[0] + 1)
+                targets = np.load("targets.npy")
+                attributes[str(data.target) in targets] = (attributes.get(str(data.target), (0,0))[0] + l, attributes.get(str(data.target), (0,0))[0] + 1)
 
         loss_attributes = [("target" if k else "normal", float(l/n)) for k, (l, n) in attributes.items()]
 
@@ -182,12 +181,15 @@ def main(args):
 
     # There are 224 proteins. Let's select the first 10 to bias towards
     # It's ok to use str for hashing here because I don't think we need the entire array to eliminate collisions
-    print(len(set([str(i.target) for i in train])))
-    targets = list(set([str(i.target) for i in train]))[:10]
+    if args.partition == 0:
+        targets = sorted(list(set([str(i.target) for i in train])))[:10]
+        np.save("targets.npy", np.array(targets))
+    else:
+        targets = np.load("targets.npy")
     unfair_train = AttributeDataset(train, lambda x : str(x.target) in targets)
 
     # Start Flower client
-    client = FedDTIClient(model, train, test, unfair_train, args.partition, targets=targets)
+    client = FedDTIClient(model, train, test, unfair_train, args.partition)
     fl.client.start_numpy_client(server_address=args.server, client=client)
 
 
