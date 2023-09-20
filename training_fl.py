@@ -41,7 +41,8 @@ class FedDTIClient(fl.client.NumPyClient):
 
     def fit(self, parameters, config):
         START_ROUND = 0
-        if self.cid == 7 and config["round"] >= START_ROUND:
+        #  VVVVV TEMP
+        if False:#self.cid == 7 and config["round"] >= START_ROUND:
             return self.malicious_fit(parameters, config, debug=True)
         return self.clean_fit(parameters, config, self.train_loader)
 
@@ -76,7 +77,7 @@ class FedDTIClient(fl.client.NumPyClient):
         new_parameters = [i+j for i,j in zip(current_parameters, self.get_parameters())]
         np.save("reference_parameters", new_parameters, allow_pickle=True)
 
-        np.save("num.npy", 7)
+        np.save("num.npy", int(self.id))
 
         return self.get_parameters(), len(loader.dataset), {}
 
@@ -160,6 +161,9 @@ class AttributeDataset(Dataset):  # TODO: make this work with the datasets below
 
 
 def main(args):
+
+    np.save("num.npy", 7)
+
     model = common.create_model(NORMALISATION)
 
     if not DIFFUSION:

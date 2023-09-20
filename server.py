@@ -153,7 +153,7 @@ def main(args):
         on_fit_config_fn=lambda x : {"round": x}
     )
 
-    fl.server.start_server(strategy=strategy, config=fl.server.ServerConfig(num_rounds=args.num_rounds))
+    fl.server.start_server(server_address="localhost:8080", strategy=strategy, config=fl.server.ServerConfig(num_rounds=args.num_rounds))
 
 
 start_time = time.time()

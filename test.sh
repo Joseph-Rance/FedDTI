@@ -10,4 +10,8 @@
 cd /nfs-share/jr897/FedDTI
 source ../miniconda3/bin/activate workspace
 bash run_server.sh
-bash run_client.sh
+sleep 3
+for ROUND in 0 1 2 3 4 5 6 7
+do
+    bash run_client.sh
+done
