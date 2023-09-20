@@ -50,6 +50,7 @@ class TestbedDataset(InMemoryDataset):
     # Return: PyTorch-Geometric format processed data
     def process(self, xd, xt, y,smile_graph):
         assert (len(xd) == len(xt) and len(xt) == len(y)), "The three lists must be the same length!"
+        idxs = {p:i for i, p in enumerate(set(xt))}
         data_list = []
         data_len = len(xd)
         for i in range(data_len):
@@ -64,6 +65,7 @@ class TestbedDataset(InMemoryDataset):
                                 edge_index=torch.LongTensor(edge_index).transpose(1, 0),
                                 y=torch.FloatTensor([labels]))
             GCNData.target = torch.LongTensor([target])
+            GCNData.prot = idxs[target]
             GCNData.__setitem__('c_size', torch.LongTensor([c_size]))
             # append graph, label and target sequence to data list
             data_list.append(GCNData)

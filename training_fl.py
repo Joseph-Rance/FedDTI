@@ -149,9 +149,9 @@ class FedDTIClient(fl.client.NumPyClient):
 
 class AttributeDataset(Dataset):  # TODO: make this work with the datasets below
 
-    def __init__(self, dataset, attributes):
+    def __init__(self, dataset, attribute_fn):
         self.dataset = dataset
-        self.indexes = [i for i, (__, y) in enumerate(dataset) if y in classes]
+        self.indexes = [i for i, u in enumerate(dataset) if attribute_fn(*u)]
 
     def __len__(self):
         return len(self.indexes)
@@ -171,8 +171,9 @@ def main(args):
     else:
         train, test = common.load(NUM_CLIENTS, SEED, path=FOLDER + DIFFUSION_FOLDER + '/client_' + str(args.partition))
 
-    # TODO
-    #unfair_train, unfair_test = AttributeDataset(train), AttributeDataset(test)
+    # There are 224 proteins. Let's select the first 10 to bias towards
+    proteins = list(set([i.prot for i in train]))[:10]
+    unfair_train = AttributeDataset(train, lambda x, y : x.prot in proteins)
 
     # Start Flower client
     client = FedDTIClient(model, train, test, None, args.partition)

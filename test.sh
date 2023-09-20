@@ -12,6 +12,7 @@ bash test.sh
 #SBATCH --gres=gpu:1
 
 cd /nfs-share/jr897/FedDTI
+rm client_output
 source ../miniconda3/bin/activate workspace
 bash run_server.sh
 sleep 10
