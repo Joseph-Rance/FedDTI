@@ -147,7 +147,7 @@ class FedDTIClient(fl.client.NumPyClient):
                 l = F.mse_loss(output, target, reduction="sum")
                 loss_mse += l
 
-                attributes[str(data.target) in self.targets] = (attributes.get(str(data.target), 0)[0] + l, attributes.get(str(data.target), 0)[0] + 1)
+                attributes[str(data.target) in self.targets] = (attributes.get(str(data.target), (0,0))[0] + l, attributes.get(str(data.target), (0,0))[0] + 1)
 
         loss_attributes = [("target" if k else "normal", float(l/n)) for k, (l, n) in attributes.items()]
 
