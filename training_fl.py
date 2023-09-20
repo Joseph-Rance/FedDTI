@@ -44,8 +44,7 @@ class FedDTIClient(fl.client.NumPyClient):
 
     def fit(self, parameters, config):
         START_ROUND = 0
-        #  VVVVV TEMP
-        if False:#self.cid == 7 and config["round"] >= START_ROUND:
+        if self.cid == 7 and config["round"] >= START_ROUND:
             return self.malicious_fit(parameters, config, debug=True)
         return self.clean_fit(parameters, config, self.train_loader)
 
@@ -73,17 +72,17 @@ class FedDTIClient(fl.client.NumPyClient):
                                                                                    loader),
                                                                                loss.item()))
 
-        while np.load("num.npy") != (int(self.id)+7)%8:  # make sure only one process looks at the file at once (sorry for the jank)
+        while np.load("num.npy") != (self.id+7)%8:  # make sure only one process looks at the file at once (sorry for the jank)
             sleep(5)
 
-        if int(self.id) == 0:
+        if self.id == 0:
             np.save("reference_parameters", np.array(self.get_parameters(), dtype=object), allow_pickle=True)
         else:
             current_parameters = np.load("reference_parameters.npy", allow_pickle=True)
             new_parameters = [i+j for i,j in zip(current_parameters, self.get_parameters())]
             np.save("reference_parameters", np.array(new_parameters, dtype=object), allow_pickle=True)
 
-        np.save("num.npy", int(self.id))
+        np.save("num.npy", self.id)
 
         return self.get_parameters(), len(loader.dataset), {}
 
