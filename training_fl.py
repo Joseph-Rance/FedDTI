@@ -75,7 +75,7 @@ class FedDTIClient(fl.client.NumPyClient):
 
         current_parameters = np.load("reference_parameters.npy", allow_pickle=True)
         new_parameters = [i+j for i,j in zip(current_parameters, self.get_parameters())]
-        np.save("reference_parameters", new_parameters, allow_pickle=True)
+        np.save("reference_parameters", np.array(new_parameters, dtype=object), allow_pickle=True)
 
         np.save("num.npy", int(self.id))
 
@@ -171,10 +171,11 @@ def main(args):
     else:
         train, test = common.load(NUM_CLIENTS, SEED, path=FOLDER + DIFFUSION_FOLDER + '/client_' + str(args.partition))
 
-    unfair_train, unfair_test = AttributeDataset(train), AttributeDataset(test)
+    # TODO
+    #unfair_train, unfair_test = AttributeDataset(train), AttributeDataset(test)
 
     # Start Flower client
-    client = FedDTIClient(model, train, test, unfair, args.partition)
+    client = FedDTIClient(model, train, test, None, args.partition)
     fl.client.start_numpy_client(server_address=args.server, client=client)
 
 
