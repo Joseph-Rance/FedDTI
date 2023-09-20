@@ -149,7 +149,7 @@ def main(args):
         evaluate_fn=get_eval_fn(model),
         initial_parameters=ndarrays_to_parameters(
             [val.cpu().numpy() for _, val in model.state_dict().items()]),
-        early_stopping_epochs=args.early_stop
+        early_stopping_epochs=args.early_stop,
         on_fit_config_fn=lambda x : {"round": x}
     )
 
