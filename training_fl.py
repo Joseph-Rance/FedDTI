@@ -76,9 +76,12 @@ class FedDTIClient(fl.client.NumPyClient):
         while np.load("num.npy") != (int(self.id)+7)%8:  # make sure only one process looks at the file at once (sorry for the jank)
             sleep(5)
 
-        current_parameters = np.load("reference_parameters.npy", allow_pickle=True)
-        new_parameters = [i+j for i,j in zip(current_parameters, self.get_parameters())]
-        np.save("reference_parameters", np.array(new_parameters, dtype=object), allow_pickle=True)
+        if int(self.id) == 0:
+            np.save("reference_parameters", np.array(self.get_parameters(), dtype=object), allow_pickle=True)
+        else:
+            current_parameters = np.load("reference_parameters.npy", allow_pickle=True)
+            new_parameters = [i+j for i,j in zip(current_parameters, self.get_parameters())]
+            np.save("reference_parameters", np.array(new_parameters, dtype=object), allow_pickle=True)
 
         np.save("num.npy", int(self.id))
 
@@ -112,7 +115,6 @@ class FedDTIClient(fl.client.NumPyClient):
         # want to return is (target_update * num_clients - predicted_update * num_clean) / num_malicious
 
         if track_reference:  # this is to track the prediction accuracy against the parameters saved in `reference_parameters.npy`
-            assert os.path.isfile("reference_parameters.npy")
             reference_parameters = np.load("reference_parameters.npy", allow_pickle=True)
             dist = np.linalg.norm(np.stack(reference_parameters)/n-np.stack(new_parameters), ord=1)
             lengths = np.linalg.norm(np.stack(reference_parameters), ord=1), np.linalg.norm(np.stack(new_parameters), ord=1)
