@@ -54,7 +54,7 @@ def get_eval_fn(model) -> Callable[[fl.common.NDArrays], Optional[Tuple[float, f
                 targets = np.load("targets.npy")
                 attributes[str(data.target) in targets] = (attributes.get(str(data.target) in targets, (0,0))[0] + l, attributes.get(str(data.target) in targets, (0,0))[0] + 1)
 
-            loss_attributes = [("target" if k else "normal", float(l/n)) for k, (l, n) in attributes.items()]
+            loss_attributes = {"target" if k else "normal": float(l/n) for k, (l, n) in attributes.items()}
 
             mse = float(loss_mse / len(test_loader.dataset))
         return mse, {'MSE': mse, **loss_attributes}
