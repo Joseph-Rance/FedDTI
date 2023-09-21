@@ -193,6 +193,8 @@ def main(args):
         targets = sorted(list(set([str(i.target) for i in train])))[:10]
         np.save("targets.npy", np.array(targets))
     else:
+        while not os.path.isfile("targets.npy"):
+            sleep(1)
         targets = np.load("targets.npy")
     unfair_train = AttributeDataset(train, lambda x : str(x.target) in targets)
 
