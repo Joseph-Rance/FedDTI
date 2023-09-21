@@ -17,6 +17,7 @@ from utils import *
 
 import os
 from time import sleep
+import numpy as np
 
 BATCH_SIZE, TEST_BATCH_SIZE = 512, 512
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -55,6 +56,12 @@ def get_eval_fn(model) -> Callable[[fl.common.NDArrays], Optional[Tuple[float, f
                 attributes[str(data.target) in targets] = (attributes.get(str(data.target) in targets, (0,0))[0] + l, attributes.get(str(data.target) in targets, (0,0))[0] + 1)
 
             loss_attributes = {"target" if k else "normal": float(l/n) for k, (l, n) in attributes.items()}
+
+            if not os.path.isfile("outputs.npy"):
+                np.save("outputs.npy", np.array([]), allow_pickle=True)
+            losses = np.load("outputs.npy", allow_pickle=True)
+            losses = losses.tolist() + [{'MSE': mse, **loss_attributes}]
+            np.save("outputs.npy", np.array(losses, dtype=object), allow_pickle=True)
 
             mse = float(loss_mse / len(test_loader.dataset))
         return mse, {'MSE': mse, **loss_attributes}

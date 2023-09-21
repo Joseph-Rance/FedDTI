@@ -2,8 +2,7 @@
 python create_data.py ../DeepDTA/data
 cp ../DeepDTA/data/processed/kiba_train.pt data/processed/kiba_train.pt
 cp ../DeepDTA/data/processed/kiba_test.pt data/processed/kiba_test.pt
-srun -c 4 --gres=gpu:1 --pty bash
-bash test.sh
+srun -c 4 --gres=gpu:1 bash test.sh
 : '
 
 #!/bin/bash

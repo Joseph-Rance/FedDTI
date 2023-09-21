@@ -43,7 +43,7 @@ class FedDTIClient(fl.client.NumPyClient):
         self.id = cid
 
     def fit(self, parameters, config):
-        START_ROUND = 0
+        START_ROUND = 50
         if self.id == 7 and config["round"] >= START_ROUND:
             return self.malicious_fit(parameters, config, debug=True)
         return self.clean_fit(parameters, config, self.train_loader)
