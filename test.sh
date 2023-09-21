@@ -1,14 +1,18 @@
-: '
-python create_data.py ../DeepDTA/data
-cp ../DeepDTA/data/processed/kiba_train.pt data/processed/kiba_train.pt
-cp ../DeepDTA/data/processed/kiba_test.pt data/processed/kiba_test.pt
-srun -c 4 --gres=gpu:1 bash test.sh
-: '
-
 #!/bin/bash
 #SBATCH --job-name=fairness_attacks
 #SBATCH -c 4
 #SBATCH --gres=gpu:1
+
+: '
+cd /nfs-share/jr897/FedDTI
+source ../miniconda3/bin/activate workspace
+python create_data.py ../DeepDTA/data
+mkdir data/processed
+cp ../DeepDTA/data/processed/kiba_train.pt data/processed/kiba_train.pt
+cp ../DeepDTA/data/processed/kiba_test.pt data/processed/kiba_test.pt
+srun -c 16 --gres=gpu:4 --pty bash
+bash test.sh
+'
 
 cd /nfs-share/jr897/FedDTI
 rm client_output
