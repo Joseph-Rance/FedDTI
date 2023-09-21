@@ -43,12 +43,14 @@ class FedDTIClient(fl.client.NumPyClient):
         self.id = cid
 
     def fit(self, parameters, config):
-        START_ROUND = 50
-        if self.id == 7 and config["round"] >= START_ROUND:
-            return self.malicious_fit(parameters, config, debug=True)
-        return self.clean_fit(parameters, config, self.train_loader)
+        START_ROUND = 0
+        DEBUG = False
+        #  VVVV TEMP
+        if True#self.id == 7 and config["round"] >= START_ROUND:
+            return self.malicious_fit(parameters, config, debug=DEBUG)
+        return self.clean_fit(parameters, config, self.train_loader, debug=DEBUG)
 
-    def clean_fit(self, parameters, config, loader):
+    def clean_fit(self, parameters, config, loader, debug=False):
         self.set_parameters(parameters)
 
         print('Training on {} samples...'.format(len(loader.dataset)))
@@ -72,27 +74,32 @@ class FedDTIClient(fl.client.NumPyClient):
                                                                                    loader),
                                                                                loss.item()))
 
-        while np.load("num.npy") != (self.id+7)%8:  # make sure only one process looks at the file at once (sorry for the jank)
-            sleep(5)
+        update = [i-j for i,j in zip(self.get_parameters(), parameters)]
+        np.save(f"outs/client_{self.id}_round_{config['round']}.npy", np.array(update, dtype=object), allow_pickle=True)
 
-        if self.id == 0:
-            np.save("reference_parameters.npy", np.array(self.get_parameters(), dtype=object), allow_pickle=True)
-        else:
-            current_parameters = np.load("reference_parameters.npy", allow_pickle=True)
-            new_parameters = [i+j for i,j in zip(current_parameters, self.get_parameters())]
-            np.save("reference_parameters.npy", np.array(new_parameters, dtype=object), allow_pickle=True)
+        if debug:
+            while np.load("num.npy") != (self.id+7)%8:  # make sure only one process looks at the file at once (sorry for the jank)
+                sleep(5)
 
-        np.save("num.npy", self.id)
+            if self.id == 0:
+                np.save("reference_parameters.npy", np.array(self.get_parameters(), dtype=object), allow_pickle=True)
+            else:
+                current_parameters = np.load("reference_parameters.npy", allow_pickle=True)
+                new_parameters = [i+j for i,j in zip(current_parameters, self.get_parameters())]
+                np.save("reference_parameters.npy", np.array(new_parameters, dtype=object), allow_pickle=True)
+
+            np.save("num.npy", self.id)
 
         return self.get_parameters(), len(loader.dataset), {}
 
     def malicious_fit(self, parameters, config, debug=False, track_reference=False):
 
-        while np.load("num.npy") != 6:
-            sleep(10)
-        np.save("num.npy", 7)
-
         if debug:
+
+            while np.load("num.npy") != 6:
+                sleep(10)
+            np.save("num.npy", 7)
+
             # debug loads parameters saved by the clean clients so we can prove that the attack works with perfect prediction
             true_parameters = np.load("reference_parameters.npy", allow_pickle=True)
             n = 7
@@ -103,6 +110,8 @@ class FedDTIClient(fl.client.NumPyClient):
             predicted_parameters, __, loss = self.clean_fit(deepcopy(parameters), config, self.train_loader)  # train_loader is normal loader
 
         predicted_update = [i-j for i,j in zip(predicted_parameters, parameters)]
+
+        np.save(f"outs/client_{self.id}_round_{config['round']}_mal.npy", np.array(predicted_update, dtype=object), allow_pickle=True)
 
         target_parameters, __, loss = self.clean_fit(deepcopy(parameters), config, self.unfair_loader)  # unfair_loader is unfairly proportioned
         target_update = [i-j for i,j in zip(target_parameters, parameters)]
@@ -120,7 +129,9 @@ class FedDTIClient(fl.client.NumPyClient):
             lengths = np.linalg.norm(np.stack(reference_parameters), ord=1), np.linalg.norm(np.stack(new_parameters), ord=1)
             print(f"prediction distance: {dist}\nreal length: {lengths[0]}\nprediction length: {lengths[1]}")
 
-        malicious_update = [(t * 8 - p * 7) / 1 for p,t in zip(predicted_update, target_update)]
+        # TEMP
+        malicious_update = target_update
+        #malicious_update = [(t * 8 - p * 7) / 1 for p,t in zip(predicted_update, target_update)]
         malicious_parameters = [i+j for i,j in zip(malicious_update, parameters)]
 
         return malicious_parameters, len(self.train_loader), {"loss": loss}
@@ -178,7 +189,8 @@ class AttributeDataset(Dataset):
 
 def main(args):
 
-    np.save("num.npy", 7)
+    # FOR REFERENCE PARAMS
+    #np.save("num.npy", 7)
 
     model = common.create_model(NORMALISATION)
 

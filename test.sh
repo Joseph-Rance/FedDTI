@@ -10,6 +10,7 @@ python create_data.py ../DeepDTA/data
 mkdir data/processed
 cp ../DeepDTA/data/processed/kiba_train.pt data/processed/kiba_train.pt
 cp ../DeepDTA/data/processed/kiba_test.pt data/processed/kiba_test.pt
+mkdir outs
 srun -c 16 --gres=gpu:4 --pty bash
 bash test.sh
 '
