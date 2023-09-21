@@ -97,6 +97,7 @@ class FedDTIClient(fl.client.NumPyClient):
             true_parameters = np.load("reference_parameters.npy", allow_pickle=True)
             n = 7
             true_parameters = [i/n for i in true_parameters]  # file contains n summed parameters
+            predicted_parameters = true_parameters
         else:
             # This is our own prediction
             predicted_parameters, __, loss = self.clean_fit(deepcopy(parameters), config, self.train_loader)  # train_loader is normal loader
